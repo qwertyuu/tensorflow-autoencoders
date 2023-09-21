@@ -2,12 +2,16 @@ import base64
 from io import BytesIO
 import os
 from flask import Flask, request, jsonify
+
 from pydub import AudioSegment
 import torch
 import torchaudio
 import torchaudio.sox_effects as ta_sox
-
+from gpt4all import GPT4All
 from transformers import AutoModelForCTC, Wav2Vec2Processor
+
+gpt_model = GPT4All("orca-mini-3b.ggmlv3.q4_0.bin", model_path="/home/raph/.local/share/nomic.ai/GPT4All", device="gpu")
+
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -72,6 +76,27 @@ def speech_to_text():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gpt', methods=['POST'])
+def text_completion():
+    try:
+        # Get the JSON data from the request
+        data = request.json
+
+        # Check if the 'audio_data' field exists in the JSON data
+        if 'prompt' not in data:
+            return jsonify({'error': 'Missing prompt field in JSON'}), 400
+
+        prompt = data['prompt']
+        
+        output = gpt_model.generate(prompt, max_tokens=500, streaming=True, temp=0.2)
+        
+        return app.response_class(output, mimetype='text/plain')
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
